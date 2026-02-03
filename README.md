@@ -1,8 +1,11 @@
 # 🎬 Ai Subtitle Creator
 
+<img src="programlogo.png" width="120" align="right" />
+
 **Ai Subtitle Creator** is a modern, AI-powered desktop application for automatically generating and styling subtitles for your videos. It uses OpenAI's Whisper model to transcribe audio with high accuracy and provides a rich interface for editing, styling, and exporting subtitles.
 
-![Ai Subtitle Creator](programlogo.png)
+![Ai Subtitle Creator Preview](preview.png)
+
 
 ## ✨ Features
 
@@ -28,7 +31,22 @@
 - Python 3.8 or newer
 - [FFmpeg](https://ffmpeg.org/) installed and added to your system PATH.
 
-### Steps
+### Installation Methods
+
+#### Option 1: Quick Install (via pip)
+
+Install directly from GitHub:
+
+```bash
+pip install git+https://github.com/Tuguberk/ai-subtitle-creator.git
+```
+
+Then run the application:
+```bash
+ai-subtitle
+```
+
+#### Option 2: Manual Setup (Development)
 
 1. Clone the repository:
    ```bash
