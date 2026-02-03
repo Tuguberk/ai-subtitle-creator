@@ -31,6 +31,28 @@
 - Python 3.8 or newer
 - [FFmpeg](https://ffmpeg.org/) installed and added to your system PATH.
 
+  **FFmpeg Installation:**
+  
+  <details>
+  <summary>Click to see installation commands</summary>
+
+  **Ubuntu/Debian:**
+  ```bash
+  sudo apt update && sudo apt install ffmpeg
+  ```
+
+  **macOS (Homebrew):**
+  ```bash
+  brew install ffmpeg
+  ```
+
+  **Windows (Chocolatey):**
+  ```powershell
+  choco install ffmpeg
+  ```
+  *(Or download from [ffmpeg.org](https://ffmpeg.org/download.html) and add `bin` folder to Path)*
+  </details>
+
 ### Installation Methods
 
 #### Option 1: Quick Install (via pip)
