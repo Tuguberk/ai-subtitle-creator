@@ -1,0 +1,56 @@
+# Reel Bold Theme
+# Per-word background boxes with bold styling
+# Similar to second example - individual colored boxes per word
+
+name: "reel_bold"
+version: "1.0"
+
+font:
+  family: "Impact"
+  size: 85
+  weight: "bold"
+  style: "normal"
+
+colors:
+  primary: "#FFFFFF"          # White text
+  highlight: "#FF3366"        # Pink/red for current word
+  background: "#FF336699"     # Pink background boxes
+  outline: "#000000"
+  shadow: "#00000099"
+
+highlight:
+  enabled: true
+  mode: "word"
+  style: "background"         # Background box changes color
+  transition: "instant"
+
+layout:
+  position: "center"
+  custom_y: null
+  max_words_per_line: 2
+  alignment: "center"
+  margin_x: 30
+  margin_y: 100
+
+background:
+  enabled: true
+  style: "per_word"           # Individual box per word
+  padding: 15
+  border_radius: 8
+  opacity: 0.9
+
+effects:
+  outline:
+    enabled: true
+    width: 4
+  shadow:
+    enabled: true
+    offset_x: 4
+    offset_y: 4
+    blur: 0
+
+animation:
+  entry: "bounce"
+  exit: "pop"
+  duration: 200
+  word_stagger: 80

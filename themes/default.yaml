@@ -1,0 +1,55 @@
+# Default Theme
+# Clean boxed style with word highlighting
+
+name: "default"
+version: "1.0"
+
+font:
+  family: "Arial"
+  size: 72
+  weight: "bold"
+  style: "normal"
+
+colors:
+  primary: "#FFFFFF"
+  highlight: "#00FF88"
+  background: "#000000CC"
+  outline: "#000000"
+  shadow: "#00000080"
+
+highlight:
+  enabled: true
+  mode: "word"
+  style: "color"
+  transition: "instant"
+
+layout:
+  position: "bottom"
+  custom_y: null
+  max_words_per_line: 4
+  alignment: "center"
+  margin_x: 50
+  margin_y: 150
+
+background:
+  enabled: true
+  style: "single"
+  padding: 20
+  border_radius: 15
+  opacity: 0.8
+
+effects:
+  outline:
+    enabled: true
+    width: 2
+  shadow:
+    enabled: false
+    offset_x: 0
+    offset_y: 0
+    blur: 0
+
+animation:
+  entry: "pop"
+  exit: "fade"
+  duration: 150
+  word_stagger: 30

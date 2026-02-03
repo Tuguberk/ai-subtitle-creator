@@ -1,0 +1,56 @@
+# Shadow 3D Theme
+# Italic text with prominent drop shadow, no background
+# Similar to third example - 3D effect clean look
+
+name: "shadow_3d"
+version: "1.0"
+
+font:
+  family: "Futura"
+  size: 90
+  weight: "bold"
+  style: "italic"
+
+colors:
+  primary: "#FFFFFF"          # White text
+  highlight: "#FFD700"        # Gold highlight
+  background: "#00000000"     # Transparent (no background)
+  outline: "#333333"
+  shadow: "#000000DD"
+
+highlight:
+  enabled: true
+  mode: "word"
+  style: "scale"              # Scale up current word
+  transition: "instant"
+
+layout:
+  position: "bottom"
+  custom_y: null
+  max_words_per_line: 2
+  alignment: "center"
+  margin_x: 50
+  margin_y: 100
+
+background:
+  enabled: false
+  style: "none"
+  padding: 0
+  border_radius: 0
+  opacity: 0
+
+effects:
+  outline:
+    enabled: true
+    width: 5
+  shadow:
+    enabled: true
+    offset_x: 6
+    offset_y: 6
+    blur: 0
+
+animation:
+  entry: "slide_up"
+  exit: "fade"
+  duration: 180
+  word_stagger: 0
