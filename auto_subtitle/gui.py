@@ -38,6 +38,210 @@ from .theme_config import SubtitleThemeConfig, load_theme, get_theme_path
 from .config import get_config, Config
 from .model_manager import get_model_manager
 
+def normalize_path(path: str) -> str:
+    """
+    Normalize a file path for the current operating system.
+    Ensures consistent path separators and resolves relative paths.
+    Works on Windows, macOS, and Linux.
+    """
+    import os
+    # Normalize the path to use OS-appropriate separators and resolve ../ etc
+    normalized = os.path.normpath(path)
+    # On Windows, also handle any forward slashes that might be mixed in
+    if sys.platform == "win32":
+        normalized = normalized.replace("/", os.sep)
+    return normalized
+
+
+def format_ffmpeg_path(path: str) -> str:
+    """
+    Format a file path for use in FFmpeg filter expressions.
+    FFmpeg filters (like 'ass') require special path escaping on Windows:
+    - Normalize the path first
+    - Convert backslashes to forward slashes
+    - Escape the colon after drive letter (C: -> C\\:)
+    
+    Works on Windows, macOS, and Linux.
+    """
+    import os
+    
+    # First normalize the path to resolve any inconsistencies
+    path = os.path.normpath(path)
+    
+    if sys.platform == "win32":
+        # On Windows, convert ALL backslashes to forward slashes for FFmpeg
+        path = path.replace("\\", "/")
+        # Escape the colon after drive letter: C:/... -> C\:/...
+        # FFmpeg filter requires the colon to be escaped
+        if len(path) >= 2 and path[1] == ":":
+            path = path[0] + "\\:" + path[2:]
+    
+    return path
+
+
+def get_ffmpeg_path() -> str:
+    """
+    Get the path to the FFmpeg executable.
+    First checks for bundled ffmpeg in the bin folder, then falls back to system PATH.
+    Works on Windows, macOS, and Linux.
+    """
+    import shutil
+    
+    # Get the directory where the module is located
+    module_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
+    # Check for bundled ffmpeg in bin folder
+    if sys.platform == "win32":
+        bundled_ffmpeg = os.path.join(module_dir, "bin", "ffmpeg.exe")
+    else:
+        bundled_ffmpeg = os.path.join(module_dir, "bin", "ffmpeg")
+    
+    if os.path.exists(bundled_ffmpeg):
+        return bundled_ffmpeg
+    
+    # Fallback to system ffmpeg
+    system_ffmpeg = shutil.which("ffmpeg")
+    if system_ffmpeg:
+        return system_ffmpeg
+    
+    # Last resort - just return "ffmpeg" and hope it's in PATH
+    return "ffmpeg"
+
+
+def get_ffprobe_path() -> str:
+    """
+    Get the path to the FFprobe executable.
+    First checks for bundled ffprobe in the bin folder, then falls back to system PATH.
+    Works on Windows, macOS, and Linux.
+    """
+    import shutil
+    
+    # Get the directory where the module is located
+    module_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
+    # Check for bundled ffprobe in bin folder
+    if sys.platform == "win32":
+        bundled_ffprobe = os.path.join(module_dir, "bin", "ffprobe.exe")
+    else:
+        bundled_ffprobe = os.path.join(module_dir, "bin", "ffprobe")
+    
+    if os.path.exists(bundled_ffprobe):
+        return bundled_ffprobe
+    
+    # Fallback to system ffprobe
+    system_ffprobe = shutil.which("ffprobe")
+    if system_ffprobe:
+        return system_ffprobe
+    
+    # Last resort - just return "ffprobe" and hope it's in PATH
+    return "ffprobe"
+
+
+def probe_video(video_path: str) -> dict:
+    """
+    Probe a video file to get its metadata using ffprobe.
+    Returns a dictionary with video stream information.
+    """
+    import subprocess
+    import json
+    
+    cmd = [
+        get_ffprobe_path(),
+        "-v", "quiet",
+        "-print_format", "json",
+        "-show_streams",
+        video_path
+    ]
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise Exception(f"ffprobe failed: {result.stderr}")
+    
+    return json.loads(result.stdout)
+
+
+# Cache for hardware encoder detection
+_hw_encoder_cache = None
+
+def get_hw_encoder() -> tuple:
+    """
+    Detect available hardware encoder for FFmpeg.
+    Returns a tuple of (encoder_name, extra_args) where:
+    - encoder_name: The codec name (e.g., 'h264_nvenc', 'libx264')
+    - extra_args: Additional FFmpeg arguments for the encoder
+    
+    Supports:
+    - Windows: NVIDIA NVENC, AMD AMF, Intel QuickSync
+    - macOS: Apple VideoToolbox
+    - Linux: NVIDIA NVENC, VAAPI, Intel QuickSync
+    
+    Falls back to libx264 (CPU) if no hardware encoder is available.
+    """
+    global _hw_encoder_cache
+    
+    if _hw_encoder_cache is not None:
+        return _hw_encoder_cache
+    
+    import subprocess
+    
+    # Define encoders to try in order of preference
+    if sys.platform == "darwin":
+        # macOS - VideoToolbox
+        encoders = [
+            ("h264_videotoolbox", []),
+        ]
+    elif sys.platform == "win32":
+        # Windows - NVENC, AMF, QuickSync
+        encoders = [
+            ("h264_nvenc", ["-preset", "p4"]),  # NVIDIA
+            ("h264_amf", []),                    # AMD
+            ("h264_qsv", []),                    # Intel
+        ]
+    else:
+        # Linux - NVENC, VAAPI, QuickSync
+        encoders = [
+            ("h264_nvenc", ["-preset", "p4"]),  # NVIDIA
+            ("h264_vaapi", ["-vaapi_device", "/dev/dri/renderD128"]),  # AMD/Intel VAAPI
+            ("h264_qsv", []),                    # Intel QuickSync
+        ]
+    
+    ffmpeg_path = get_ffmpeg_path()
+    
+    # Test each encoder
+    for encoder, extra_args in encoders:
+        try:
+            # Try to initialize the encoder with a null input
+            cmd = [
+                ffmpeg_path,
+                "-hide_banner",
+                "-f", "lavfi",
+                "-i", "nullsrc=s=256x256:d=1",
+                "-c:v", encoder,
+                "-f", "null",
+                "-t", "0.1",
+                "-"
+            ]
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode == 0:
+                print(f"GPU encoder detected: {encoder}")
+                _hw_encoder_cache = (encoder, extra_args)
+                return _hw_encoder_cache
+                
+        except (subprocess.TimeoutExpired, Exception) as e:
+            continue
+    
+    # Fallback to CPU encoder
+    print("No GPU encoder available, using libx264 (CPU)")
+    _hw_encoder_cache = ("libx264", ["-preset", "ultrafast"])
+    return _hw_encoder_cache
+
 
 @dataclass
 class SubtitleSegment:
@@ -65,18 +269,29 @@ class TranscriptionWorker(QThread):
     def run(self):
         try:
             import whisper
-            import ffmpeg
+            import subprocess
             
             self.status.emit("Ses çıkarılıyor...")
             self.progress.emit(10)
             
-            # Extract audio
+            # Extract audio using subprocess with bundled FFmpeg
             temp_dir = tempfile.gettempdir()
             audio_path = os.path.join(temp_dir, "temp_audio.wav")
             
-            ffmpeg.input(self.video_path).output(
-                audio_path, acodec="pcm_s16le", ac=1, ar="16k"
-            ).run(quiet=True, overwrite_output=True)
+            # Build FFmpeg command for audio extraction
+            cmd = [
+                get_ffmpeg_path(),
+                "-y",  # Overwrite output
+                "-i", self.video_path,
+                "-acodec", "pcm_s16le",
+                "-ac", "1",
+                "-ar", "16000",
+                audio_path
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise Exception(f"FFmpeg audio extraction failed: {result.stderr}")
             
             self.status.emit("Model yükleniyor...")
             self.progress.emit(20)
@@ -114,6 +329,10 @@ class TranscriptionWorker(QThread):
             self.finished.emit(segments)
             
         except Exception as e:
+            import traceback
+            print(f"=== TranscriptionWorker HATA ===")
+            print(f"Hata: {str(e)}")
+            traceback.print_exc()
             self.error.emit(str(e))
 
 
@@ -138,74 +357,134 @@ class PreviewRenderWorker(QThread):
 
     def run(self):
         try:
-            import ffmpeg
             from .subtitle_renderer import SubtitleRenderer
+            import subprocess
             
             temp_dir = tempfile.gettempdir()
             ass_path = os.path.join(temp_dir, f"preview_subtitles_{self.render_id}.ass")
             preview_path = os.path.join(temp_dir, f"preview_with_subs_{self.render_id}.mp4")
             
+            # 1. Altyazı dosyasını oluştur
             self.status.emit("Altyazılar oluşturuluyor...")
-            self.progress.emit(20)
+            segments_dict = [{"start": s.start, "end": s.end, "text": s.text, "words": s.words or []} for s in self.segments]
             
-            # Convert segments to dict format for renderer
-            segments_dict = [
-                {
-                    "start": seg.start,
-                    "end": seg.end,
-                    "text": seg.text,
-                    "words": seg.words or []
-                }
-                for seg in self.segments
-            ]
-            
-            # Get video dimensions
-            probe = ffmpeg.probe(self.video_path)
+            # Get video dimensions using bundled ffprobe
+            probe = probe_video(self.video_path)
             video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
-            orig_width = int(video_info['width'])
-            orig_height = int(video_info['height'])
+            orig_width, orig_height = int(video_info['width']), int(video_info['height'])
             
-            # Preview at 50% resolution for speed
-            preview_width = orig_width // 2
-            preview_height = orig_height // 2
-            # Ensure even dimensions
-            preview_width = preview_width - (preview_width % 2)
-            preview_height = preview_height - (preview_height % 2)
+            # Check for rotation in side_data_list or tags
+            rotation = 0
+            if 'side_data_list' in video_info:
+                for side_data in video_info['side_data_list']:
+                    if 'rotation' in side_data:
+                        rotation = int(side_data['rotation'])
+                        break
+            if 'tags' in video_info and 'rotate' in video_info['tags']:
+                rotation = int(video_info['tags']['rotate'])
             
-            # Render ASS file with preview dimensions
-            # Scale font size too for preview
-            preview_theme = self.theme
-            renderer = SubtitleRenderer(preview_theme, preview_height, preview_width)
+            # Swap dimensions if video is rotated 90 or 270 degrees
+            if abs(rotation) in [90, 270]:
+                orig_width, orig_height = orig_height, orig_width
+            
+            # Calculate preview dimensions (half size, maintain aspect ratio)
+            p_width = (orig_width // 2) & ~1  # Ensure even number
+            p_height = (orig_height // 2) & ~1
+            
+            renderer = SubtitleRenderer(self.theme, p_width, p_height)
             renderer.render_to_file(segments_dict, ass_path)
             
             self.status.emit("Önizleme render ediliyor...")
-            self.progress.emit(40)
             
-            # Render preview video with subtitles at lower resolution
-            video = ffmpeg.input(self.video_path)
-            audio = video.audio
+            # 2. Build FFmpeg command manually (bypass ffmpeg-python's over-escaping)
+            # Format the ASS path for FFmpeg filter on Windows
+            if sys.platform == "win32":
+                # On Windows, the ass filter needs the path with forward slashes
+                # and the colon after drive letter escaped
+                filter_ass_path = ass_path.replace("\\", "/")
+                if len(filter_ass_path) >= 2 and filter_ass_path[1] == ":":
+                    filter_ass_path = filter_ass_path[0] + "\\:" + filter_ass_path[2:]
+            else:
+                filter_ass_path = ass_path
             
-            # Scale down first, then apply subtitles
-            video_scaled = video.filter('scale', preview_width, preview_height)
-            video_with_subs = video_scaled.filter('ass', ass_path)
+            # Build base filter string (without format conversion)
+            base_filter = f"scale={p_width}:{p_height}:force_original_aspect_ratio=decrease,pad={p_width}:{p_height}:(ow-iw)/2:(oh-ih)/2"
+            filter_10bit = f"{base_filter},ass='{filter_ass_path}'"
             
-            # Output with lower quality for faster preview
-            ffmpeg.output(
-                video_with_subs, audio,
-                preview_path,
-                vcodec='libx264',
-                acodec='aac',
-                preset='ultrafast',
-                crf=32,  # Lower quality for speed
-                r=24,    # Lower framerate
-                **{'y': None}  # Overwrite
-            ).run(quiet=True, overwrite_output=True)
+            # For 8-bit conversion, add proper HDR to SDR tone mapping
+            # This prevents overexposure and color issues when converting from 10-bit HDR
+            hdr_to_sdr = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p"
+            filter_8bit_hdr = f"{base_filter},{hdr_to_sdr},ass='{filter_ass_path}'"
+            # Simple 8-bit conversion (for non-HDR content)
+            filter_8bit_simple = f"{base_filter},format=yuv420p,ass='{filter_ass_path}'"
             
-            self.progress.emit(100)
+            # Get hardware encoder if available
+            encoder, encoder_args = get_hw_encoder()
+            
+            def run_ffmpeg(vf_filter, video_encoder, extra_args, desc):
+                """Helper to run FFmpeg with given settings"""
+                cmd = [
+                    get_ffmpeg_path(),
+                    "-y",
+                    "-i", self.video_path,
+                    "-vf", vf_filter,
+                    "-c:v", video_encoder,
+                ]
+                cmd.extend(extra_args)
+                cmd.extend(["-r", "24", "-c:a", "aac", preview_path])
+                print(f"Trying {desc}: {' '.join(cmd)}")
+                return subprocess.run(cmd, capture_output=True, text=True)
+            
+            result = None
+            
+            # Encoding fallback chain:
+            # 1. GPU 10-bit (original quality)
+            # 2. GPU 8-bit with HDR tone mapping
+            # 3. GPU 8-bit simple (if zscale not available)
+            # 4. CPU with HDR tone mapping
+            # 5. CPU simple (last resort)
+            
+            if encoder != "libx264":
+                # Step 1: Try GPU encoder with 10-bit (original quality)
+                result = run_ffmpeg(filter_10bit, encoder, encoder_args, f"GPU ({encoder}) 10-bit")
+                
+                # Step 2: If GPU 10-bit fails, try GPU with 8-bit HDR tone mapping
+                if result.returncode != 0:
+                    print(f"GPU 10-bit failed, trying GPU 8-bit with HDR tone mapping...")
+                    result = run_ffmpeg(filter_8bit_hdr, encoder, encoder_args, f"GPU ({encoder}) 8-bit HDR")
+                
+                # Step 3: If HDR tone mapping fails (zscale not available), try simple conversion
+                if result.returncode != 0:
+                    print(f"GPU 8-bit HDR failed, trying GPU 8-bit simple...")
+                    result = run_ffmpeg(filter_8bit_simple, encoder, encoder_args, f"GPU ({encoder}) 8-bit simple")
+                
+                # Step 4: If GPU still fails, try CPU with HDR
+                if result.returncode != 0:
+                    print(f"GPU failed, trying CPU with HDR tone mapping...")
+                    result = run_ffmpeg(filter_8bit_hdr, "libx264", ["-preset", "ultrafast", "-crf", "28"], "CPU HDR")
+                
+                # Step 5: Last resort - CPU simple
+                if result.returncode != 0:
+                    print(f"CPU HDR failed, trying CPU simple...")
+                    result = run_ffmpeg(filter_8bit_simple, "libx264", ["-preset", "ultrafast", "-crf", "28"], "CPU simple")
+            else:
+                # CPU only - try HDR first, then simple
+                result = run_ffmpeg(filter_8bit_hdr, "libx264", ["-preset", "ultrafast", "-crf", "28"], "CPU HDR")
+                if result.returncode != 0:
+                    result = run_ffmpeg(filter_8bit_simple, "libx264", ["-preset", "ultrafast", "-crf", "28"], "CPU simple")
+            
+            if result.returncode != 0:
+                print(f"FFmpeg stderr: {result.stderr}")
+                raise Exception(f"FFmpeg failed: {result.stderr}")
+            
             self.status.emit("Önizleme hazır!")
             self.finished.emit(preview_path)
             
         except Exception as e:
+            import traceback
+            print(f"=== PreviewRenderWorker HATA ===")
+            print(f"Hata: {str(e)}")
+            traceback.print_exc()
             self.error.emit(str(e))
 
 
@@ -1400,7 +1679,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Ai Subtitle Creator")
-        self.setWindowIcon(QIcon("programlogo.png"))
+        self.setWindowIcon(QIcon("logo.ico"))
         self.setMinimumSize(1000, 700)
         self.resize(1400, 900)  # Larger default for better layout
         
@@ -1815,20 +2094,75 @@ class MainWindow(QMainWindow):
     
     def _export_video(self, path: str):
         """Export video with burned-in subtitles."""
-        import ffmpeg
         import tempfile
+        import subprocess
         
         # First export ASS
         temp_ass = os.path.join(tempfile.gettempdir(), "temp_subtitles.ass")
         self._export_ass(temp_ass)
         
-        # Burn subtitles into video
-        video = ffmpeg.input(self.video_path)
-        audio = video.audio
+        # Format path for FFmpeg filter (cross-platform compatible)
+        if sys.platform == "win32":
+            # On Windows, the ass filter needs the path with forward slashes
+            # and the colon after drive letter escaped
+            filter_ass_path = temp_ass.replace("\\", "/")
+            if len(filter_ass_path) >= 2 and filter_ass_path[1] == ":":
+                filter_ass_path = filter_ass_path[0] + "\\:" + filter_ass_path[2:]
+        else:
+            filter_ass_path = temp_ass
         
-        ffmpeg.concat(
-            video.filter('ass', temp_ass), audio, v=1, a=1
-        ).output(path).run(quiet=True, overwrite_output=True)
+        # Build filter strings
+        filter_10bit = f"ass='{filter_ass_path}'"
+        # HDR to SDR tone mapping for proper color conversion
+        hdr_to_sdr = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p"
+        filter_8bit_hdr = f"{hdr_to_sdr},ass='{filter_ass_path}'"
+        filter_8bit_simple = f"format=yuv420p,ass='{filter_ass_path}'"
+        
+        # Get hardware encoder if available
+        encoder, encoder_args = get_hw_encoder()
+        
+        def run_ffmpeg(vf_filter, video_encoder, extra_args, desc):
+            """Helper to run FFmpeg with given settings"""
+            cmd = [
+                get_ffmpeg_path(),
+                "-y",
+                "-i", self.video_path,
+                "-vf", vf_filter,
+                "-c:v", video_encoder,
+            ]
+            cmd.extend(extra_args)
+            cmd.extend(["-c:a", "aac", path])
+            print(f"Trying {desc}: {' '.join(cmd)}")
+            return subprocess.run(cmd, capture_output=True, text=True)
+        
+        result = None
+        
+        # Encoding fallback chain (same as preview but with better quality for export)
+        if encoder != "libx264":
+            result = run_ffmpeg(filter_10bit, encoder, encoder_args, f"GPU ({encoder}) 10-bit")
+            
+            if result.returncode != 0:
+                print(f"GPU 10-bit failed, trying GPU 8-bit with HDR tone mapping...")
+                result = run_ffmpeg(filter_8bit_hdr, encoder, encoder_args, f"GPU ({encoder}) 8-bit HDR")
+            
+            if result.returncode != 0:
+                print(f"GPU 8-bit HDR failed, trying GPU 8-bit simple...")
+                result = run_ffmpeg(filter_8bit_simple, encoder, encoder_args, f"GPU ({encoder}) 8-bit simple")
+            
+            if result.returncode != 0:
+                print(f"GPU failed, trying CPU with HDR tone mapping...")
+                result = run_ffmpeg(filter_8bit_hdr, "libx264", ["-crf", "23", "-preset", "medium"], "CPU HDR")
+            
+            if result.returncode != 0:
+                print(f"CPU HDR failed, trying CPU simple...")
+                result = run_ffmpeg(filter_8bit_simple, "libx264", ["-crf", "23", "-preset", "medium"], "CPU simple")
+        else:
+            result = run_ffmpeg(filter_8bit_hdr, "libx264", ["-crf", "23", "-preset", "medium"], "CPU HDR")
+            if result.returncode != 0:
+                result = run_ffmpeg(filter_8bit_simple, "libx264", ["-crf", "23", "-preset", "medium"], "CPU simple")
+        
+        if result.returncode != 0:
+            raise Exception(f"FFmpeg failed: {result.stderr}")
     
     def _format_srt_time(self, seconds: float) -> str:
         """Format seconds as SRT time (HH:MM:SS,mmm)."""
