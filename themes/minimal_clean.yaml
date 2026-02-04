@@ -1,0 +1,44 @@
+name: "Minimal Clean"
+version: "1.0"
+font:
+  family: "Segoe UI"
+  size: 55
+  weight: "400"
+  style: "normal"
+colors:
+  primary: "#F0F0F0"
+  highlight: "#FFFFFF"
+  background: "#000000"
+  outline: "#000000"
+  shadow: "#000000"
+highlight:
+  enabled: true
+  mode: "word"
+  style: "color"
+  transition: "fade"
+layout:
+  position: "bottom"
+  max_words_per_line: 6
+  alignment: "center"
+  margin_x: 50
+  margin_y: 120
+background:
+  enabled: false
+  style: "none"
+  padding: 10
+  border_radius: 5
+  opacity: 0.5
+effects:
+  outline:
+    enabled: true
+    width: 2
+  shadow:
+    enabled: true
+    offset_x: 2
+    offset_y: 2
+    blur: 4
+animation:
+  entry: "fade"
+  exit: "fade"
+  duration: 250
+  word_stagger: 0

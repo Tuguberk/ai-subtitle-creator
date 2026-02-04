@@ -137,6 +137,21 @@ def get_ffprobe_path() -> str:
     return "ffprobe"
 
 
+def get_resource_path(relative_path: str) -> str:
+    """
+    Get absolute path to resource, works for dev and for PyInstaller.
+    """
+    if hasattr(sys, 'frozen'):
+        # PyInstaller - in onedir mode resources are next to the executable
+        base_path = os.path.dirname(sys.executable)
+    else:
+        # Development - resources are in the project root
+        # this file is in auto_subtitle/, so project root is one level up
+        base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
+    return os.path.join(base_path, relative_path)
+
+
 def probe_video(video_path: str) -> dict:
     """
     Probe a video file to get its metadata using ffprobe.
@@ -153,7 +168,11 @@ def probe_video(video_path: str) -> dict:
         video_path
     ]
     
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    kwargs = {}
+    if sys.platform == "win32":
+        kwargs["creationflags"] = 0x08000000
+        
+    result = subprocess.run(cmd, capture_output=True, text=True, **kwargs)
     if result.returncode != 0:
         raise Exception(f"ffprobe failed: {result.stderr}")
     
@@ -222,11 +241,16 @@ def get_hw_encoder() -> tuple:
                 "-"
             ]
             
+            kwargs = {}
+            if sys.platform == "win32":
+                kwargs["creationflags"] = 0x08000000
+            
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
+                **kwargs
             )
             
             if result.returncode == 0:
@@ -289,7 +313,11 @@ class TranscriptionWorker(QThread):
                 audio_path
             ]
             
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            kwargs = {}
+            if sys.platform == "win32":
+                kwargs["creationflags"] = 0x08000000
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, **kwargs)
             if result.returncode != 0:
                 raise Exception(f"FFmpeg audio extraction failed: {result.stderr}")
             
@@ -307,7 +335,16 @@ class TranscriptionWorker(QThread):
             if self.language != "auto":
                 options["language"] = self.language
             
-            result = model.transcribe(audio_path, **options)
+            # Load audio to numpy to avoid Whisper calling FFmpeg again (which would open console)
+            import wave
+            import numpy as np
+            
+            with wave.open(audio_path, "rb") as wf:
+                raw_data = wf.readframes(wf.getnframes())
+                # Convert buffer to float32 array normalized to [-1, 1]
+                audio_np = np.frombuffer(raw_data, dtype=np.int16).astype(np.float32) / 32768.0
+            
+            result = model.transcribe(audio_np, **options)
             
             self.progress.emit(90)
             self.status.emit("İşleniyor...")
@@ -433,7 +470,11 @@ class PreviewRenderWorker(QThread):
                 cmd.extend(extra_args)
                 cmd.extend(["-r", "24", "-c:a", "aac", preview_path])
                 print(f"Trying {desc}: {' '.join(cmd)}")
-                return subprocess.run(cmd, capture_output=True, text=True)
+                kwargs = {}
+                if sys.platform == "win32":
+                    kwargs["creationflags"] = 0x08000000
+                    
+                return subprocess.run(cmd, capture_output=True, text=True, **kwargs)
             
             result = None
             
@@ -1679,7 +1720,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Ai Subtitle Creator")
-        self.setWindowIcon(QIcon("logo.ico"))
+        self.setWindowIcon(QIcon(get_resource_path("logo.ico")))
         self.setMinimumSize(1000, 700)
         self.resize(1400, 900)  # Larger default for better layout
         
@@ -2133,7 +2174,13 @@ class MainWindow(QMainWindow):
             cmd.extend(extra_args)
             cmd.extend(["-c:a", "aac", path])
             print(f"Trying {desc}: {' '.join(cmd)}")
-            return subprocess.run(cmd, capture_output=True, text=True)
+            print(f"Trying {desc}: {' '.join(cmd)}")
+            
+            kwargs = {}
+            if sys.platform == "win32":
+                kwargs["creationflags"] = 0x08000000
+                
+            return subprocess.run(cmd, capture_output=True, text=True, **kwargs)
         
         result = None
         
@@ -2177,7 +2224,7 @@ def main():
     """Main entry point for GUI."""
     app = QApplication(sys.argv)
     app.setApplicationName("Ai Subtitle Creator")
-    app.setWindowIcon(QIcon("programlogo.png"))
+    app.setWindowIcon(QIcon(get_resource_path("logo.ico")))
     
     # Apply theme
     app.setStyleSheet(DARK_THEME)

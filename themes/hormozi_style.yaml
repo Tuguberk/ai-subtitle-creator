@@ -1,0 +1,44 @@
+name: "Hormozi Style"
+version: "1.0"
+font:
+  family: "Arial Black"
+  size: 75
+  weight: "900"
+  style: "normal"
+colors:
+  primary: "#FFFFFF"
+  highlight: "#00FF00"
+  background: "#000000"
+  outline: "#000000"
+  shadow: "#000000"
+highlight:
+  enabled: true
+  mode: "word"
+  style: "color"
+  transition: "instant"
+layout:
+  position: "center"
+  max_words_per_line: 4
+  alignment: "center"
+  margin_x: 60
+  margin_y: 100
+background:
+  enabled: true
+  style: "per_word"
+  padding: 15
+  border_radius: 12
+  opacity: 1.0
+effects:
+  outline:
+    enabled: false
+    width: 0
+  shadow:
+    enabled: true
+    offset_x: 5
+    offset_y: 5
+    blur: 0
+animation:
+  entry: "spring"
+  exit: "scale"
+  duration: 200
+  word_stagger: 0

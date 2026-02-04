@@ -1,0 +1,44 @@
+name: "YouTube Standard"
+version: "1.0"
+font:
+  family: "Arial"
+  size: 50
+  weight: "600"
+  style: "normal"
+colors:
+  primary: "#FFFFFF"
+  highlight: "#FFFF00"
+  background: "#000000"
+  outline: "#111111"
+  shadow: "#000000"
+highlight:
+  enabled: true
+  mode: "word"
+  style: "color"
+  transition: "instant"
+layout:
+  position: "bottom"
+  max_words_per_line: 10
+  alignment: "center"
+  margin_x: 60
+  margin_y: 80
+background:
+  enabled: true
+  style: "single"
+  padding: 18
+  border_radius: 8
+  opacity: 0.7
+effects:
+  outline:
+    enabled: true
+    width: 2
+  shadow:
+    enabled: true
+    offset_x: 2
+    offset_y: 2
+    blur: 2
+animation:
+  entry: "fade"
+  exit: "fade"
+  duration: 200
+  word_stagger: 0

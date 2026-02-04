@@ -1,0 +1,44 @@
+name: "Neon Cyber"
+version: "1.0"
+font:
+  family: "Verdana"
+  size: 70
+  weight: "bold"
+  style: "italic"
+colors:
+  primary: "#00FFFF"
+  highlight: "#FF00FF"
+  background: "#000000"
+  outline: "#FF00FF"
+  shadow: "#00FFFF"
+highlight:
+  enabled: true
+  mode: "word"
+  style: "color"
+  transition: "instant"
+layout:
+  position: "center"
+  max_words_per_line: 4
+  alignment: "center"
+  margin_x: 40
+  margin_y: 100
+background:
+  enabled: false
+  style: "none"
+  padding: 10
+  border_radius: 10
+  opacity: 0.0
+effects:
+  outline:
+    enabled: true
+    width: 3
+  shadow:
+    enabled: true
+    offset_x: 0
+    offset_y: 0
+    blur: 15
+animation:
+  entry: "slide_up"
+  exit: "slide_down"
+  duration: 180
+  word_stagger: 0

@@ -1,0 +1,44 @@
+name: "TikTok Classic"
+version: "1.0"
+font:
+  family: "Arial"
+  size: 65
+  weight: "bold"
+  style: "normal"
+colors:
+  primary: "#FFFFFF"
+  highlight: "#FFD700"
+  background: "#000000"
+  outline: "#000000"
+  shadow: "#000000"
+highlight:
+  enabled: true
+  mode: "word"
+  style: "color"
+  transition: "instant"
+layout:
+  position: "center"
+  max_words_per_line: 3
+  alignment: "center"
+  margin_x: 40
+  margin_y: 100
+background:
+  enabled: false
+  style: "none"
+  padding: 10
+  border_radius: 10
+  opacity: 0.8
+effects:
+  outline:
+    enabled: true
+    width: 4
+  shadow:
+    enabled: true
+    offset_x: 3
+    offset_y: 3
+    blur: 2
+animation:
+  entry: "pop"
+  exit: "none"
+  duration: 150
+  word_stagger: 0
